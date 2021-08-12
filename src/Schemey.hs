@@ -4,8 +4,9 @@ module Schemey
     ( schemeyPrompt
     ) where
 
-import Schemey.Parsing
+import Schemey.Parsing ( readExpression )
 import System.Console.Haskeline
+    ( defaultSettings, getInputLine, outputStrLn, runInputT, InputT )
 
 schemeyPrompt :: IO ()
 schemeyPrompt = runInputT defaultSettings loop
