@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4e9f09530b42863acc657f573278656653741d2ec87eb93c1b0e840a32786d32
+-- hash: 6872faefe6f0d5b2a861b9499d6074189d0ab2ad2d0bee82873f24401a6f8619
 
 name:           Schemey
 version:        0.1.0.0
@@ -27,6 +27,7 @@ source-repository head
 library
   exposed-modules:
       Schemey
+      Schemey.Evaluation
       Schemey.Parsing
   other-modules:
       Paths_Schemey

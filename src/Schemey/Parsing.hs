@@ -1,25 +1,21 @@
-{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 -- | Module containing functions to parse Schemey input
 
 module Schemey.Parsing
     ( readExpression
-    , SValue
+    , SValue (..)
     ) where
 
-import System.Environment ()
 import Text.ParserCombinators.Parsec ( oneOf, many, parse, Parser, skipMany1, (<|>), char, noneOf, many1, newline, tab, alphaNum, octDigit, try, sepBy, endBy, sepEndBy )
-import Text.Read (reset)
 import Data.Bool (bool)
 import Control.Monad (liftM)
 import Text.Parsec.Char
     ( digit, space, letter, endOfLine, hexDigit, anyChar, string, spaces )
 import GHC.Show (Show)
 import Numeric (readHex, readOct, readFloat)
-import Data.Char (toTitle, digitToInt)
-import GHC.Real (Real, (%))
-import GHC.Unicode (toTitle)
+import GHC.Real ((%))
 import Data.Bits (toIntegralSized)
 import GHC.Arr (Array, listArray)
+import Data.Functor
 
 -- | Data Definition for a Scheme Value
 data SValue = SAtom String
@@ -34,7 +30,29 @@ data SValue = SAtom String
             | SDottedList [SValue] SValue
             | SVector (Array Int SValue)
             | SNil ()
-            deriving (Show, Eq)
+            deriving (Eq)
+
+instance Show SValue where show = showSValue
+-- | Helper function for showing Lists
+unwordsList :: [SValue] -> String
+unwordsList = unwords . map showSValue
+
+-- | Shows the given SValue
+showSValue :: SValue -> String
+showSValue (SAtom aa) = aa
+showSValue (SString ss) = "\"" ++ ss ++ "\""
+showSValue (SBool True) = "#t"
+showSValue (SBool False) = "#f"
+showSValue (SCharacter cc) = show cc
+showSValue (SComplex rr cc) = show rr ++ "+" ++ show cc ++ "i"
+showSValue (SRational xx) = show xx
+showSValue (SInteger xx) = show xx
+showSValue (SFloat xx) = show xx
+showSValue (SList xs) = "(" ++ unwordsList xs ++ ")"
+showSValue (SDottedList xs xx) = 
+    "(" ++ unwordsList xs ++ "." ++ showSValue xx ++ ")"
+showSValue (SVector arr) = show arr
+showSValue (SNil _) = "()"
 
 -- | Reads a String of Schemey input and returns an output
 readExpression :: String -> String
@@ -130,7 +148,8 @@ parseInteger = parseDecimalInteger
 
 -- | Parses decimal numbers into SNumbers
 parseDecimalInteger :: Parser SValue
-parseDecimalInteger = many1  digit >>= return . SInteger .  read
+-- parseDecimalInteger = many1  digit >>= return . SInteger .  read
+parseDecimalInteger = many1  digit <&> SInteger .  read
 
 -- | Parses decimal numbers into SNumbers
 -- requires the #d prefix
@@ -153,7 +172,7 @@ parseHexadecimalInteger = do
 parseOctalInteger :: Parser SValue
 parseOctalInteger = do
     try $ string "#o" <|> string "#O"
-    x <- many1 $ octDigit
+    x <- many1 octDigit
     return $ SInteger (extract x)
   where
     extract x = fst $ head $ readOct x
@@ -182,6 +201,7 @@ parseComplex = do
   where
       toDouble (SInteger x) = fromIntegral x
       toDouble (SFloat x) = realToFrac x
+      toDouble _ = -1
 
 -- | Parses an SReal (Floating point)
 parseFloat :: Parser SValue
