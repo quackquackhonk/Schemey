@@ -10,30 +10,24 @@ import Text.ParserCombinators.Parsec ( oneOf, many, parse, Parser, skipMany1, (<
 import Text.Read (reset)
 import Data.Bool (bool)
 import Control.Monad (liftM)
-import Text.Parsec.Char (digit, space, letter, endOfLine, hexDigit)
+import Text.Parsec.Char
+    ( digit, space, letter, endOfLine, hexDigit, anyChar, string )
 import GHC.Show (Show)
-import Text.Parsec.Char (string)
-import Numeric (readHex, readOct)
+import Numeric (readHex, readOct, readFloat)
 import Data.Char (toTitle, digitToInt)
-import GHC.Real (Real)
+import GHC.Real (Real, (%))
 import GHC.Unicode (toTitle)
 import Data.Bits (toIntegralSized)
 
-
-{-|
-Schemey Language Grammar
-
-value: <number> | <character>*
-expression: value | ( <operator> <expression> )
-operator: + | - | * | / | % 
-program: <start> <operator> <expression> <eof>
-|-}
-
 -- | Data Definition for a Scheme Value
 data SValue = SAtom String
-            | SNumber Integer
             | SString String
             | SBool Bool
+            | SCharacter Char
+            | SComplex Float Float
+            | SRational Rational
+            | SInteger Integer
+            | SFloat Float
             | SList [SValue]
             | SDottedList [SValue] SValue
             deriving (Show, Eq)
@@ -47,8 +41,12 @@ readExpression input = case parse parseSValue "lisp" input of
 parseSValue :: Parser SValue
 parseSValue = parseAtom
             <|> parseString
-            <|> parseNumber
-            <|> parseBool
+            <|> try parseCharacter
+            <|> try parseBool
+            <|> try parseComplex
+            <|> try parseFloat
+            <|> try parseRational
+            <|> try parseInteger
 
 -- | Parser to ignore whitespace
 spaces :: Parser ()
@@ -90,43 +88,53 @@ parseBool = do
                 'f' -> SBool False
                 _   -> SBool False
 
+-- | Parses an SCharacter
+parseCharacter :: Parser SValue
+parseCharacter = do
+    try $ string "#\\"
+    c <- many anyChar
+    return $ SCharacter $ case c of
+                    "" -> ' '
+                    "newline" -> '\n'
+                    [a] -> a
+                    _ -> '\0'
+
 -- | Parses an SNumber
 -- So far only parses whole numbers
-parseNumber :: Parser SValue
--- parseNumber = many1 digit >>= return . SNumber . read
-parseNumber = parseDecimalNumber
-            <|> parseDecimalNumberStrict
-            <|> parseHexadecimalNumber
-            <|> parseOctalNumber
-            <|> parseBinaryNumber
+parseInteger :: Parser SValue
+parseInteger = parseDecimalInteger 
+            <|> parseDecimalIntegerStrict 
+            <|> parseHexadecimalInteger 
+            <|> parseOctalInteger 
+            <|> parseBinaryInteger 
 
 -- | Parses decimal numbers into SNumbers
-parseDecimalNumber :: Parser SValue
-parseDecimalNumber = many1 digit >>= return . SNumber . read
+parseDecimalInteger :: Parser SValue
+parseDecimalInteger = many1  digit >>= return . SInteger .  read
 
 -- | Parses decimal numbers into SNumbers
 -- requires the #d prefix
-parseDecimalNumberStrict :: Parser SValue
-parseDecimalNumberStrict = do
-    try $ string "#d"
-    x <- many1 $ digit 
-    return $ SNumber . read $ x
+parseDecimalIntegerStrict :: Parser SValue
+parseDecimalIntegerStrict = do
+    try $ string "#d" <|> string "#D"
+    x <- many1 digit
+    return $ SInteger . read $ x
 
 -- | Parses hexadecimal numbers into SNumbers
-parseHexadecimalNumber :: Parser SValue
-parseHexadecimalNumber = do
-    try $ string "#x"
-    x <- many1 $ hexDigit
-    return $ SNumber (extract x)
+parseHexadecimalInteger :: Parser SValue
+parseHexadecimalInteger = do
+    try $ string "#x" <|> string "#X"
+    x <- many1 hexDigit
+    return $ SInteger (extract x)
   where
     extract x = fst $ head $ readHex x
 
 -- | Parses octal numbers into SNumber
-parseOctalNumber :: Parser SValue
-parseOctalNumber = do
-    try $ string "#o"
+parseOctalInteger :: Parser SValue
+parseOctalInteger = do
+    try $ string "#o" <|> string "#O"
     x <- many1 $ octDigit
-    return $ SNumber (extract x)
+    return $ SInteger (extract x)
   where
     extract x = fst $ head $ readOct x
 
@@ -137,11 +145,11 @@ bin2num ds total = foldl doubleAddDigit total ds
         binDig c = if c == '0' then 0 else 1
 
 -- | Parses binary numbers into an SNumber
-parseBinaryNumber :: Parser SValue
-parseBinaryNumber = do
+parseBinaryInteger :: Parser SValue
+parseBinaryInteger = do
     try $ string "#b"
     x <- many1 $ oneOf "10"
-    return $ SNumber (bin2num x 0)
+    return $ SInteger (bin2num x 0)
 
 -- | Parses an SString
 parseString :: Parser SValue
@@ -152,6 +160,33 @@ parseString = do
     char '"'
     return $ SString s
 
+-- | Parses an SComplex number
+parseComplex :: Parser SValue
+parseComplex = do
+    real <- try $ parseDecimalInteger <|> parseFloat
+    char '+'
+    complex <- try $ parseDecimalInteger <|> parseFloat
+    char 'i'
+    return $ SComplex (toDouble real) (toDouble complex)
+  where
+      toDouble (SInteger x) = fromIntegral x
+      toDouble (SFloat x) = realToFrac x
+
+-- | Parses an SReal (Floating point)
+parseFloat :: Parser SValue
+parseFloat = do
+    a <- many1 digit
+    char '.'
+    b <- many1 digit
+    return $ SFloat $ fst . head $ readFloat (a++"."++b)
+
+-- | Parses an SRational number
+parseRational :: Parser SValue
+parseRational = do
+    numerator <- many1 digit 
+    char '/'
+    denominator <- many1 digit 
+    return $ SRational $ read numerator % read denominator
 
 -- | Parses an SList
 -- | Parses an SDottedList
