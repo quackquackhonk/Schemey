@@ -1,8 +1,9 @@
 -- | Module containing functions to parse Schemey input
 
 module Schemey.Parsing
-    ( readExpression
-    , SValue (..)
+    ( SValue (..)
+    , SNumberVal (..)
+    , parseSValue
     ) where
 
 import Text.ParserCombinators.Parsec ( oneOf, many, parse, Parser, skipMany1, (<|>), char, noneOf, many1, newline, tab, alphaNum, octDigit, try, sepBy, endBy, sepEndBy )
@@ -15,24 +16,29 @@ import Numeric (readHex, readOct, readFloat)
 import GHC.Real ((%))
 import Data.Bits (toIntegralSized)
 import GHC.Arr (Array, listArray)
-import Data.Functor
+import Data.Functor ( (<&>) )
 
 -- | Data Definition for a Scheme Value
-data SValue = SAtom String
+data SValue = SNil ()
+            | SAtom String
             | SString String
             | SBool Bool
+            | SNumber SNumberVal
             | SCharacter Char
-            | SComplex Float Float
-            | SRational Rational
-            | SInteger Integer
-            | SFloat Float
             | SList [SValue]
             | SDottedList [SValue] SValue
             | SVector (Array Int SValue)
-            | SNil ()
             deriving (Eq)
 
+data SNumberVal = SNComplex Float Float
+                | SNRational Rational
+                | SNFloat Float
+                | SNInteger Integer
+                deriving (Eq)
+
 instance Show SValue where show = showSValue
+instance Show SNumberVal where show = showSNumberVal
+
 -- | Helper function for showing Lists
 unwordsList :: [SValue] -> String
 unwordsList = unwords . map showSValue
@@ -43,22 +49,20 @@ showSValue (SAtom aa) = aa
 showSValue (SString ss) = "\"" ++ ss ++ "\""
 showSValue (SBool True) = "#t"
 showSValue (SBool False) = "#f"
+showSValue (SNumber vv) = show vv
 showSValue (SCharacter cc) = show cc
-showSValue (SComplex rr cc) = show rr ++ "+" ++ show cc ++ "i"
-showSValue (SRational xx) = show xx
-showSValue (SInteger xx) = show xx
-showSValue (SFloat xx) = show xx
 showSValue (SList xs) = "(" ++ unwordsList xs ++ ")"
-showSValue (SDottedList xs xx) = 
+showSValue (SDottedList xs xx) =
     "(" ++ unwordsList xs ++ "." ++ showSValue xx ++ ")"
 showSValue (SVector arr) = show arr
 showSValue (SNil _) = "()"
 
--- | Reads a String of Schemey input and returns an output
-readExpression :: String -> String
-readExpression input = case parse parseSValue "lisp" input of
-    Left  err -> "No match: " ++ show err
-    Right val   -> show val
+-- | Shows the given SNumberVal
+showSNumberVal :: SNumberVal -> String
+showSNumberVal (SNComplex rr cc) = show rr ++ "+" ++ show cc ++ "i"
+showSNumberVal (SNRational xx) = show xx
+showSNumberVal (SNInteger xx) = show xx
+showSNumberVal (SNFloat xx) = show xx
 
 -- | Parser to ignore whitespace
 spaces' :: Parser ()
@@ -149,7 +153,7 @@ parseInteger = parseDecimalInteger
 -- | Parses decimal numbers into SNumbers
 parseDecimalInteger :: Parser SValue
 -- parseDecimalInteger = many1  digit >>= return . SInteger .  read
-parseDecimalInteger = many1  digit <&> SInteger .  read
+parseDecimalInteger = many1 digit <&> SNumber . SNInteger .  read
 
 -- | Parses decimal numbers into SNumbers
 -- requires the #d prefix
@@ -157,14 +161,14 @@ parseDecimalIntegerStrict :: Parser SValue
 parseDecimalIntegerStrict = do
     try $ string "#d" <|> string "#D"
     x <- many1 digit
-    return $ SInteger . read $ x
+    return $ SNumber . SNInteger . read $ x
 
 -- | Parses hexadecimal numbers into SNumbers
 parseHexadecimalInteger :: Parser SValue
 parseHexadecimalInteger = do
     try $ string "#x" <|> string "#X"
     x <- many1 hexDigit
-    return $ SInteger (extract x)
+    return $ SNumber . SNInteger $ extract x
   where
     extract x = fst $ head $ readHex x
 
@@ -173,7 +177,7 @@ parseOctalInteger :: Parser SValue
 parseOctalInteger = do
     try $ string "#o" <|> string "#O"
     x <- many1 octDigit
-    return $ SInteger (extract x)
+    return $ SNumber . SNInteger $ (extract x)
   where
     extract x = fst $ head $ readOct x
 
@@ -188,7 +192,7 @@ parseBinaryInteger :: Parser SValue
 parseBinaryInteger = do
     try $ string "#b"
     x <- many1 $ oneOf "10"
-    return $ SInteger (bin2num x 0)
+    return $ SNumber . SNInteger $ (bin2num x 0)
 
 -- | Parses an SComplex number
 parseComplex :: Parser SValue
@@ -197,10 +201,10 @@ parseComplex = do
     char '+'
     complex <- try $ parseDecimalInteger <|> parseFloat
     char 'i'
-    return $ SComplex (toDouble real) (toDouble complex)
+    return $ SNumber $ SNComplex (toDouble real) (toDouble complex)
   where
-      toDouble (SInteger x) = fromIntegral x
-      toDouble (SFloat x) = realToFrac x
+      toDouble (SNumber (SNInteger x)) = fromIntegral x
+      toDouble (SNumber (SNFloat x)) = realToFrac x
       toDouble _ = -1
 
 -- | Parses an SReal (Floating point)
@@ -209,7 +213,7 @@ parseFloat = do
     a <- many1 digit
     char '.'
     b <- many1 digit
-    return $ SFloat $ fst . head $ readFloat (a++"."++b)
+    return $ SNumber . SNFloat$ fst . head $ readFloat (a++"."++b)
 
 -- | Parses an SRational number
 parseRational :: Parser SValue
@@ -217,7 +221,7 @@ parseRational = do
     numerator <- many1 digit
     char '/'
     denominator <- many1 digit
-    return $ SRational $ read numerator % read denominator
+    return $ SNumber . SNRational $ read numerator % read denominator
 
 
 -- | Parses either an SList, or an SDottedList
@@ -237,7 +241,7 @@ parseAnySList = do
     tail <- (char '.' >> spaces >> parseSValue) <|> return (SNil ())
     spaces >> char ')'
     return $ case tail of
-        SNil () -> SList head 
+        SNil () -> SList head
         _ -> SDottedList head tail
 
 
