@@ -88,19 +88,12 @@ escapeChar = do
 -- | Main Parser for SValues
 -- delegates to other parsers when they are complex i.e. the number parser
 parseSValue :: Parser SValue
-parseSValue = parseNil
-            <|> parseAtom
+parseSValue = parseAtom
             <|> parseString
             <|> try parseBool
             <|> try parseCharacter
             <|> try parseNumber
             <|> parseList
-
--- | Parses an SNil value
-parseNil :: Parser SValue
-parseNil = do
-    string "nil"
-    return $ SNil ()
 
 -- | Parses an SAtom 
 -- Will parse 'true' and 'false' as boolean literals
@@ -109,7 +102,9 @@ parseAtom :: Parser SValue
 parseAtom = do
     first <- letter <|> symbol
     rest <- many $ letter <|> digit <|> symbol
-    return $ SAtom (first : rest)
+    return $ case first : rest of
+       "nil" -> SNil ()
+       _ -> SAtom (first : rest)
 
 -- | Parses an SString
 parseString :: Parser SValue

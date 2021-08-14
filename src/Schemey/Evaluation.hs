@@ -32,15 +32,26 @@ schemeyPrimitives = [ ("+", binaryNumberFunc snAdd)
                     , ("mod", binaryNumberFunc snMod)
                     , ("quotient", binaryNumberFunc snQuot)
                     , ("rem", binaryNumberFunc snRem)
+                    , ("not", unaryFunc sbNot)
+                    , ("nil?", unaryFunc svNilP)
+                    , ("atom?", unaryFunc svAtomP)
+                    , ("boolean?", unaryFunc svBooleanP)
+                    , ("string?", unaryFunc svStringP)
+                    , ("number?", unaryFunc svNumberP)
+                    , ("character?", unaryFunc svCharacterP)
+                    , ("list?", unaryFunc svListP)
+                    , ("dottedlist?", unaryFunc svDotListP)
+                    , ("vector?", unaryFunc svVectorP)
+                    -- , ("", )
                     ]
 
+-- | Abstraction over the behavior of binary number functions
 binaryNumberFunc :: (SNumberVal -> SNumberVal -> SNumberVal) -> [SValue] -> SValue
 binaryNumberFunc op args = SNumber $ foldl1 op $ map unpackNum args
 
 unpackNum :: SValue -> SNumberVal 
 unpackNum (SNumber snv) = snv
-unpackNum (SList [n]) = unpackNum n
-unpackNum xx = error $ show xx ++ " is not a valid SNumberValue"
+unpackNum _ = SNInteger 0
 
 -- | Binary add operation for SNumberVals
 snAdd :: SNumberVal -> SNumberVal -> SNumberVal
@@ -120,3 +131,34 @@ snRem (SNRational xx) _ = error "rem is not implemented for rationals"
 snRem _ (SNRational yy) = error "rem is not implemented for rationals"
 snRem (SNInteger xx) (SNInteger yy) = SNInteger $ rem xx yy
 
+-- | Abstraction over the behavior of unary boolean functions
+unaryFunc :: (SValue -> SValue) -> [SValue] -> SValue 
+unaryFunc func [arg] = func arg
+unaryFunc _ _ = SNil ()
+
+-- | Boolean negation for SValues
+-- all SValues are treated as equivalent to True, except for False
+sbNot :: SValue -> SValue 
+sbNot (SBool False) = SBool True 
+sbNot _ = SBool False
+
+-- | Unary type-checking functions
+svNilP, svAtomP, svBooleanP, svStringP, svNumberP, svCharacterP, svListP, svDotListP, svVectorP :: SValue -> SValue
+svNilP (SNil _) = SBool True
+svNilP _ = SBool False
+svAtomP (SAtom _) = SBool True
+svAtomP _ = SBool False
+svBooleanP (SBool _) = SBool True
+svBooleanP _ = SBool False
+svStringP (SString _) = SBool True
+svStringP _ = SBool False
+svNumberP (SNumber _) = SBool True
+svNumberP _ = SBool False
+svCharacterP (SCharacter _) = SBool True
+svCharacterP _ = SBool False
+svListP (SList _) = SBool True
+svListP _ = SBool False
+svDotListP (SDottedList _ _) = SBool True
+svDotListP _ = SBool False
+svVectorP (SVector _) = SBool True
+svVectorP _ = SBool False
