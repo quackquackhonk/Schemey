@@ -68,9 +68,12 @@ showSNumberVal (SNFloat xx) = show xx
 spaces' :: Parser ()
 spaces' = skipMany1 space
 
--- | Parses to recognize identifiers
+-- | Parser to recognize identifiers
 symbol :: Parser Char
 symbol = oneOf "~$%&|*+_/:<=>?@_~"
+
+symbolMid :: Parser Char
+symbolMid = oneOf "~$%&|*+_/:<=>?@_~-"
 
 -- | Parser to recognize escape characters
 escapeChar :: Parser Char
@@ -101,7 +104,7 @@ parseSValue = parseAtom
 parseAtom :: Parser SValue
 parseAtom = do
     first <- letter <|> symbol
-    rest <- many $ letter <|> digit <|> symbol
+    rest <- many $ letter <|> digit <|> symbolMid
     return $ case first : rest of
        "nil" -> SNil ()
        _ -> SAtom (first : rest)

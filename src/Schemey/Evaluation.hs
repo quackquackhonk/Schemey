@@ -32,7 +32,9 @@ schemeyPrimitives = [ ("+", binaryNumberFunc snAdd)
                     , ("mod", binaryNumberFunc snMod)
                     , ("quotient", binaryNumberFunc snQuot)
                     , ("rem", binaryNumberFunc snRem)
+                    -- Boolean functions
                     , ("not", unaryFunc sbNot)
+                    -- Type-checking functions
                     , ("nil?", unaryFunc svNilP)
                     , ("atom?", unaryFunc svAtomP)
                     , ("boolean?", unaryFunc svBooleanP)
@@ -40,8 +42,10 @@ schemeyPrimitives = [ ("+", binaryNumberFunc snAdd)
                     , ("number?", unaryFunc svNumberP)
                     , ("character?", unaryFunc svCharacterP)
                     , ("list?", unaryFunc svListP)
-                    , ("dottedlist?", unaryFunc svDotListP)
                     , ("vector?", unaryFunc svVectorP)
+                    -- Symbol processing functinos
+                    , ("symbol->string", unaryFunc sAtomToString)
+                    , ("string->symbol", unaryFunc sStringToAtom)
                     -- , ("", )
                     ]
 
@@ -143,7 +147,7 @@ sbNot (SBool False) = SBool True
 sbNot _ = SBool False
 
 -- | Unary type-checking functions
-svNilP, svAtomP, svBooleanP, svStringP, svNumberP, svCharacterP, svListP, svDotListP, svVectorP :: SValue -> SValue
+svNilP, svAtomP, svBooleanP, svStringP, svNumberP, svCharacterP, svListP, svVectorP :: SValue -> SValue
 svNilP (SNil _) = SBool True
 svNilP _ = SBool False
 svAtomP (SAtom _) = SBool True
@@ -157,8 +161,17 @@ svNumberP _ = SBool False
 svCharacterP (SCharacter _) = SBool True
 svCharacterP _ = SBool False
 svListP (SList _) = SBool True
+svListP (SDottedList _ _) = SBool True
 svListP _ = SBool False
-svDotListP (SDottedList _ _) = SBool True
-svDotListP _ = SBool False
 svVectorP (SVector _) = SBool True
 svVectorP _ = SBool False
+
+-- | Converts an SAtom to an SString
+sAtomToString :: SValue -> SValue 
+sAtomToString (SAtom name) = SString name
+sAtomToString _ = error "Expected an Atom"
+
+-- | Converts an SString to an SAtom
+sStringToAtom :: SValue -> SValue 
+sStringToAtom (SString name) = SAtom name
+sStringToAtom _ = error "Expected a String"
