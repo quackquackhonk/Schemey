@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 815f43b722bba3bac5b38b0c1db0205602667118228ff17563d21d7ecac11259
+-- hash: 39dd297ba3ab7f14c6ba5559396a8af5ba5afbafba244a957cd518f291721d5b
 
 name:           Schemey
 version:        0.1.0.0
@@ -14,7 +14,6 @@ bug-reports:    https://github.com/sahanatankala/Schemey/issues
 author:         Sahana Tankala
 maintainer:     sahanatankala@example.com
 license:        BSD3
-license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
     README.md
