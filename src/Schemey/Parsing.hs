@@ -1,11 +1,10 @@
 -- | Module containing functions to parse Schemey input
 
 module Schemey.Parsing
-    ( SValue (..)
-    , SNumberVal (..)
-    , parseSValue
+    ( parseSValue
     ) where
 
+import Schemey.Grammar (SValue(..), SNumberVal(..))
 import Text.ParserCombinators.Parsec ( oneOf, many, parse, Parser, skipMany1, (<|>), char, noneOf, many1, newline, tab, alphaNum, octDigit, try, sepBy, endBy, sepEndBy )
 import Data.Bool (bool)
 import Control.Monad (liftM)
@@ -17,52 +16,7 @@ import GHC.Real ((%))
 import Data.Bits (toIntegralSized)
 import GHC.Arr (Array, listArray)
 import Data.Functor ( (<&>) )
-
--- | Data Definition for a Scheme Value
-data SValue = SNil ()
-            | SAtom String
-            | SString String
-            | SBool Bool
-            | SNumber SNumberVal
-            | SCharacter Char
-            | SList [SValue]
-            | SDottedList [SValue] SValue
-            | SVector (Array Int SValue)
-            deriving (Eq)
-
-data SNumberVal = SNComplex Float Float
-                | SNRational Rational
-                | SNFloat Float
-                | SNInteger Integer
-                deriving (Eq)
-
-instance Show SValue where show = showSValue
-instance Show SNumberVal where show = showSNumberVal
-
--- | Helper function for showing Lists
-unwordsList :: [SValue] -> String
-unwordsList = unwords . map showSValue
-
--- | Shows the given SValue
-showSValue :: SValue -> String
-showSValue (SAtom aa) = aa
-showSValue (SString ss) = "\"" ++ ss ++ "\""
-showSValue (SBool True) = "#t"
-showSValue (SBool False) = "#f"
-showSValue (SNumber vv) = show vv
-showSValue (SCharacter cc) = show cc
-showSValue (SList xs) = "(" ++ unwordsList xs ++ ")"
-showSValue (SDottedList xs xx) =
-    "(" ++ unwordsList xs ++ "." ++ showSValue xx ++ ")"
-showSValue (SVector arr) = show arr
-showSValue (SNil _) = "()"
-
--- | Shows the given SNumberVal
-showSNumberVal :: SNumberVal -> String
-showSNumberVal (SNComplex rr cc) = show rr ++ "+" ++ show cc ++ "i"
-showSNumberVal (SNRational xx) = show xx
-showSNumberVal (SNInteger xx) = show xx
-showSNumberVal (SNFloat xx) = show xx
+import Data.Complex (Complex(..))
 
 -- | Parser to ignore whitespace
 spaces' :: Parser ()
@@ -201,16 +155,24 @@ parseBinaryInteger = do
 
 -- | Parses an SComplex number
 parseComplex :: Parser SValue
-parseComplex = do
-    real <- try $ parseDecimalInteger <|> parseFloat
-    char '+'
-    complex <- try $ parseDecimalInteger <|> parseFloat
-    char 'i'
-    return $ SNumber $ SNComplex (toDouble real) (toDouble complex)
+parseComplex = try parseComplexPos <|> try parseComplexNeg
   where
-      toDouble (SNumber (SNInteger x)) = fromIntegral x
-      toDouble (SNumber (SNFloat x)) = realToFrac x
-      toDouble _ = -1
+    parseComplexPos = do
+        real <- try $ parseDecimalInteger <|> parseFloat
+        char '+'
+        complex <- try $ parseDecimalInteger <|> parseFloat
+        char 'i'
+        return $ SNumber $ SNComplex $ toDouble real :+ toDouble complex
+    parseComplexNeg = do
+        real <- try $ parseDecimalInteger <|> parseFloat
+        char '-'
+        complex <- try $ parseDecimalInteger <|> parseFloat
+        char 'i'
+        return $ SNumber $ SNComplex $ toDouble real :+ negate (toDouble complex)
+    -- Helper function for the parsing functions
+    toDouble (SNumber (SNInteger x)) = fromIntegral x
+    toDouble (SNumber (SNFloat x)) = realToFrac x
+    toDouble _ = -1
 
 -- | Parses an SReal (Floating point)
 parseFloat :: Parser SValue
@@ -251,12 +213,10 @@ parseAnySList = do
 
 
 -- | Parses an SList
--- TODO: needs to be updated for all expressions, not just values
 parseStandardList :: Parser SValue
 parseStandardList = SList <$> sepBy parseSValue spaces'
 
 -- | Parses an SDottedList
--- TODO: needs to be updated for all expressions, not just values
 parseDottedList :: Parser SValue
 parseDottedList = do
     head <- endBy parseSValue spaces'

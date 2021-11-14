@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 39dd297ba3ab7f14c6ba5559396a8af5ba5afbafba244a957cd518f291721d5b
+-- hash: e880d26e2c81ae6d44a027e504a400a64ca2ed18baa72c30b109b7d8bec11671
 
 name:           Schemey
 version:        0.1.0.0
@@ -28,6 +28,7 @@ library
       Schemey
       Schemey.Error
       Schemey.Evaluation
+      Schemey.Grammar
       Schemey.Parsing
   other-modules:
       Paths_Schemey

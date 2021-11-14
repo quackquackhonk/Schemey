@@ -3,35 +3,40 @@ module Schemey.Evaluation
     ( evalSValue
     ) where
 
-import Schemey.Parsing (SValue (..), SNumberVal (SNComplex, SNFloat, SNRational, SNInteger))
+import Schemey.Grammar (SValue (..), SNumberVal (..))
+import Schemey.Error (ThrowsSError, SError(..))
+import Control.Monad.Except (throwError)
+import Data.Complex (Complex(..))
 
 -- | Evaluates the given Schemey Expression
-evalSValue :: SValue -> SValue
-evalSValue xx@(SNil _) = xx
-evalSValue xx@(SAtom _) = xx
-evalSValue xx@(SString _) = xx
-evalSValue xx@(SBool _) = xx
-evalSValue xx@(SNumber _) = xx
-evalSValue xx@(SCharacter _) = xx
-evalSValue (SList [SAtom "quote", xs]) = xs
-evalSValue (SList (SAtom func : args)) = applySFunc func $ map evalSValue args
-evalSValue (SList xs) = SNil ()
-evalSValue (SDottedList xs xx) = SNil ()
-evalSValue (SVector arr) = SNil ()
+evalSValue :: SValue -> ThrowsSError SValue
+evalSValue xx@(SNil _) = return xx
+evalSValue xx@(SAtom _) = return xx
+evalSValue xx@(SString _) = return  xx
+evalSValue xx@(SBool _) = return xx
+evalSValue xx@(SNumber _) = return xx
+evalSValue xx@(SCharacter _) = return xx
+evalSValue (SList [SAtom "quote", xs]) = return xs
+evalSValue (SList (SAtom func : args)) = mapM evalSValue args >>= applySFunc func
+evalSValue (SList xs) = throwError $ MiscellaneousError "List Evaluation isn't implemented yet"
+evalSValue (SDottedList xs xx) = throwError $ MiscellaneousError "D. List Evaluation isn't implemented yet"
+evalSValue (SVector arr) = throwError $ MiscellaneousError "Vector Evaluation isn't implemented yet"
 
 -- | Applies the given Schemey function with the given list of arguments
-applySFunc :: String -> [SValue] -> SValue
-applySFunc ff args = maybe (SNil ()) ($ args) $ lookup ff schemeyPrimitives
+applySFunc :: String -> [SValue] -> ThrowsSError SValue
+applySFunc ff args = maybe (throwError $ NotFunctionError "Primitive Function Args Not Recognized" ff)
+                           ($ args)
+                           (lookup ff schemeyPrimitives)
 
 -- | Lookup list for primative schemey operations
-schemeyPrimitives :: [(String, [SValue] -> SValue)]
-schemeyPrimitives = [ ("+", binaryNumberFunc snAdd)
-                    , ("-", binaryNumberFunc snSub)
-                    , ("*", binaryNumberFunc snMult)
-                    , ("/", binaryNumberFunc snDiv)
-                    , ("mod", binaryNumberFunc snMod)
-                    , ("quotient", binaryNumberFunc snQuot)
-                    , ("rem", binaryNumberFunc snRem)
+schemeyPrimitives :: [(String, [SValue] -> ThrowsSError SValue)]
+schemeyPrimitives = [ ("+", binaryNumberFunc (+))
+                    , ("-", binaryNumberFunc (-))
+                    , ("*", binaryNumberFunc (*))
+                    , ("/", binaryNumberFunc (/))
+                    , ("mod", binaryNumberFunc mod)
+                    , ("quotient", binaryNumberFunc quot)
+                    , ("rem", binaryNumberFunc rem)
                     -- Boolean functions
                     , ("not", unaryFunc sbNot)
                     -- Type-checking functions
@@ -50,95 +55,36 @@ schemeyPrimitives = [ ("+", binaryNumberFunc snAdd)
                     ]
 
 -- | Abstraction over the behavior of binary number functions
-binaryNumberFunc :: (SNumberVal -> SNumberVal -> SNumberVal) -> [SValue] -> SValue
-binaryNumberFunc op args = SNumber $ foldl1 op $ map unpackNum args
+-- binaryNumberFunc :: Num a => (a -> a -> a) -> [SValue] -> ThrowsSError SValue
+binaryNumberFunc :: (SNumberVal -> SNumberVal -> SNumberVal) -> [SValue] -> ThrowsSError SValue
+binaryNumberFunc op [] = throwError $ NumArgsError 2 []
+binaryNumberFunc op xx@[_] = throwError $ NumArgsError 2 xx
+binaryNumberFunc op args@(xx:_) = mapM unpackNum args >>= return . SNumber . foldl1 op
 
-unpackNum :: SValue -> SNumberVal 
-unpackNum (SNumber snv) = snv
-unpackNum _ = SNInteger 0
+-- snAdd :: SNumberVal -> SNumberVal -> SNumberVal 
+-- snAdd xx yy = extract xx + extract yy
+--   where
+--     extract (SNFloat ff) = ff
 
--- | Binary add operation for SNumberVals
-snAdd :: SNumberVal -> SNumberVal -> SNumberVal
-snAdd (SNComplex xr xc) (SNComplex yr yc) = SNComplex (xr + yr) (xc + yc)
-snAdd (SNFloat xx) (SNFloat yy) = SNFloat $ xx + yy
-snAdd (SNRational xx) (SNRational yy) = SNRational $ xx + yy
-snAdd (SNInteger xx) (SNInteger yy) = SNInteger $ xx + yy
-snAdd _ _ = error "type mismatch when adding"
 
--- | Binary subtraction operation for SNumberVals
-snSub :: SNumberVal -> SNumberVal -> SNumberVal
-snSub (SNComplex xr xc) (SNComplex yr yc) = SNComplex (xr - yr) (xc - yc)
-snSub (SNFloat xx) (SNFloat yy) = SNFloat $ xx - yy
-snSub (SNRational xx) (SNRational yy) = SNRational $ xx - yy
-snSub (SNInteger xx) (SNInteger yy) = SNInteger $ xx - yy
-snSub _ _ = error "type mismatch when subtracting"
+-- unpackNum :: Num a => SValue -> ThrowsSError a
+-- unpackNum (SNumber snv) = return $ extractSNV snv
+--   where
+--     extractSNV :: Num a => SNumberVal -> a
+--     extractSNV (SNFloat ff) = ff
+--     extractSNV (SNRational rr) = rr
+--     extractSNV (SNInteger ii) = ii
+--     extractSNV (SNComplex com@(rr :+ ii)) = rr :+ ii
+unpackNum :: SValue -> ThrowsSError SNumberVal
+unpackNum (SNumber snv) = return snv
+unpackNum notNum = throwError $ TypeMismatchError "SNumber" notNum
 
--- | Binary multiplication for SNumberVals
-snMult :: SNumberVal -> SNumberVal -> SNumberVal
-snMult (SNComplex xr xc) (SNComplex yr yc) =
-    SNComplex (xr * yr - xc * yc) (xr * yc + xc * yr)
-snMult (SNFloat xx) (SNFloat yy) = SNFloat $ xx * yy
-snMult (SNRational xx) (SNRational yy) = SNRational $ xx * yy
-snMult (SNInteger xx) (SNInteger yy) = SNInteger $ xx * yy
-snMult _ _ = error "type mismatch when multiplying"
-
--- | Binary Division for SNumberVals
-snDiv :: SNumberVal -> SNumberVal -> SNumberVal
-snDiv xx yy@(SNComplex yr yc)
-    | (yr == 0) && (yc == 0) = error "division by 0"
-    | otherwise = SNComplex (numR / denom) (numC / denom)
-  where
-      yrecip@(SNComplex yr' yc') = SNComplex yr (negate yc)
-      SNComplex numR numC = snMult xx yrecip
-      -- we can ignore the complex part of the denom since
-      -- yy * yrecip is a difference of squares, and will
-      -- never have a complex part
-      SNComplex denom _ = snMult yy yrecip
-snDiv (SNFloat xx) (SNFloat yy)
-    | yy == 0.0 = error "division by 0"
-    | otherwise = SNFloat $ xx  / yy
-snDiv (SNRational xx) (SNRational yy)
-    | yy == 0 = error "division by 0"
-    | otherwise = SNRational $ xx  / yy
-snDiv (SNInteger xx) (SNInteger yy)
-    | yy == 0 = error "division by 0"
-    | otherwise = SNInteger $ div xx yy
-snDiv _ _ = error "type mismatch when multiplyting"
-
--- | Modulo operator for SNumberVals
-snMod :: SNumberVal -> SNumberVal -> SNumberVal 
-snMod _ cc@(SNComplex _ _) = error "modulo is not implemented for complex numbers"
-snMod cc@(SNComplex _ _) _ = error "modulo is not implemented for complex numbers"
-snMod _ (SNFloat yy) = error "modulo is not implemented for floats"
-snMod (SNFloat xx) _ = error "modulo is not implemented for floats"
-snMod _ (SNRational yy) = error "modulo is not implemented for rationals"
-snMod (SNRational xx) _ = error "modulo is not implemented for rationals"
-snMod (SNInteger xx) (SNInteger yy) = SNInteger $ mod xx yy
-
--- | Quotient operator for SNumberVals
-snQuot :: SNumberVal -> SNumberVal -> SNumberVal 
-snQuot _ cc@(SNComplex _ _) = error "quotient is not implemented for complex numbers"
-snQuot cc@(SNComplex _ _) _ = error "quotient is not implemented for complex numbers"
-snQuot (SNFloat xx) _ = error "quotient is not implemented for floats"
-snQuot _ (SNFloat yy) = error "quotient is not implemented for floats"
-snQuot (SNRational xx) _ = error "quotient is not implemented for rationals"
-snQuot _ (SNRational yy) = error "quotient is not implemented for rationals"
-snQuot (SNInteger xx) (SNInteger yy) = SNInteger $ quot xx yy
-
--- | Remainder operator for SNumberVals
-snRem :: SNumberVal -> SNumberVal -> SNumberVal 
-snRem _ cc@(SNComplex _ _) = error "remainder is not implemented for complex numbers"
-snRem cc@(SNComplex _ _) _ = error "remainder is not implemented for complex numbers"
-snRem (SNFloat xx) _ = error "rem is not implementec for floats"
-snRem _ (SNFloat yy) = error "rem is not implementec for floats"
-snRem (SNRational xx) _ = error "rem is not implemented for rationals"
-snRem _ (SNRational yy) = error "rem is not implemented for rationals"
-snRem (SNInteger xx) (SNInteger yy) = SNInteger $ rem xx yy
 
 -- | Abstraction over the behavior of unary boolean functions
-unaryFunc :: (SValue -> SValue) -> [SValue] -> SValue 
-unaryFunc func [arg] = func arg
-unaryFunc _ _ = SNil ()
+unaryFunc :: (SValue -> SValue) -> [SValue] -> ThrowsSError SValue
+unaryFunc func [] = throwError $ NumArgsError 1 []
+unaryFunc func [arg] = return $ func arg
+unaryFunc func twoPlusArgs@(x1:x2:_) = throwError $ NumArgsError 1 twoPlusArgs
 
 -- | Boolean negation for SValues
 -- all SValues are treated as equivalent to True, except for False
