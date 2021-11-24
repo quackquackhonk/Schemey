@@ -1,20 +1,19 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4e9f09530b42863acc657f573278656653741d2ec87eb93c1b0e840a32786d32
+-- hash: e880d26e2c81ae6d44a027e504a400a64ca2ed18baa72c30b109b7d8bec11671
 
 name:           Schemey
 version:        0.1.0.0
 description:    Please see the README on GitHub at <https://github.com/githubuser/Schemey#readme>
-homepage:       https://github.com/tankalav/Schemey#readme
-bug-reports:    https://github.com/tankalav/Schemey/issues
-author:         Varun Tankala
-maintainer:     tankalavarun@example.com
+homepage:       https://github.com/sahanatankala/Schemey#readme
+bug-reports:    https://github.com/sahanatankala/Schemey/issues
+author:         Sahana Tankala
+maintainer:     sahanatankala@example.com
 license:        BSD3
-license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
     README.md
@@ -22,11 +21,14 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/tankalav/Schemey
+  location: https://github.com/sahanatankala/Schemey
 
 library
   exposed-modules:
       Schemey
+      Schemey.Error
+      Schemey.Evaluation
+      Schemey.Grammar
       Schemey.Parsing
   other-modules:
       Paths_Schemey
@@ -35,6 +37,7 @@ library
   build-depends:
       base >=4.7 && <5
     , haskeline
+    , mtl
     , parsec
   default-language: Haskell2010
 
@@ -49,6 +52,7 @@ executable Schemey-exe
       Schemey
     , base >=4.7 && <5
     , haskeline
+    , mtl
     , parsec
   default-language: Haskell2010
 
@@ -64,5 +68,6 @@ test-suite Schemey-test
       Schemey
     , base >=4.7 && <5
     , haskeline
+    , mtl
     , parsec
   default-language: Haskell2010

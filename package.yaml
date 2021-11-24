@@ -1,9 +1,9 @@
 name:                Schemey
 version:             0.1.0.0
-github:              "tankalav/Schemey"
+github:              "sahanatankala/Schemey"
 license:             BSD3
-author:              "Varun Tankala"
-maintainer:          "tankalavarun@example.com"
+author:              "Sahana Tankala"
+maintainer:          "sahanatankala@example.com"
 
 extra-source-files:
 - README.md
@@ -22,6 +22,7 @@ dependencies:
 - base >= 4.7 && < 5
 - haskeline
 - parsec
+- mtl
 
 library:
   source-dirs: src
